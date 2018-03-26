@@ -16,7 +16,7 @@ BAR_WIDTH = 20
 # Height of panel
 PANEL_HEIGHT = 7
 
-# Width of log panel
+# Panel width
 PANEL_Y = SCREEN_HEIGHT - PANEL_HEIGHT
 
 # Framerate
@@ -31,7 +31,6 @@ MAP_WIDTH = 90
 # Height of map
 MAP_HEIGHT = 55
 
-#Width of status bar
 STATUS_WIDTH = 23
 STATUS_X = SCREEN_WIDTH - STATUS_WIDTH
 
@@ -52,6 +51,9 @@ FOV_ALGO = 0
 
 # Light walls with fov
 FOV_LIGHT_WALLS = True
+
+# FOV size
+#TORCH_RADIUS = 3
 
 # ?
 MSG_X = BAR_WIDTH + 2
@@ -159,8 +161,7 @@ class Object:
         if not is_blocked(self.x + dx, self.y + dy):
             self.x += dx
             self.y += dy
-
-    # Monster move function
+    # Ai for monsters
     def move_towards(self, target_x, target_y):
         dx = target_x - self.x
         dy = target_y - self.y
@@ -170,7 +171,6 @@ class Object:
         dy = int(round(dy / distance))
         self.move(dx, dy)
 
-    # Moves monster towards player
     def move_astar(self, target):
         fov = libtcod.map_new(MAP_WIDTH, MAP_HEIGHT)
 
@@ -196,7 +196,6 @@ class Object:
 
         libtcod.path_delete(my_path)
 
-    # Finds distance between object and coordinates
     def distance(self, x, y):
         return math.sqrt((x - self.x) ** 2 + (y - self.y) ** 2)
 
@@ -211,7 +210,6 @@ class Object:
         global objects
         objects.remove(self)
         objects.insert(0, self)
-
     # Draws objects
     def draw(self):
         if (libtcod.map_is_in_fov(fov_map, self.x, self.y) or
@@ -222,7 +220,6 @@ class Object:
     # Clears
     def clear(self):
         libtcod.console_put_char(con, self.x, self.y, ' ', libtcod.BKGND_NONE)
-
 # Definiton for blocked objects
 def is_blocked(x, y):
     if map[x][y].blocked:
@@ -234,14 +231,12 @@ def is_blocked(x, y):
 
     return False
 
-# Basic item class
 class Item:
     def __init__(self, use_function=None):
         self.use_function = use_function
 
-    # Function to pick up items
     def pick_up(self):
-        if len(inventory) >= 26:
+        if len(inventory) >= 52:
             message('Your inventory is full, cannot pick up ' + self.owner.name + '.', libtcod.red)
         else:
             inventory.append(self.owner)
@@ -249,10 +244,9 @@ class Item:
             message('You picked up a ' + self.owner.name + '!', libtcod.green)
 
             equipment = self.owner.equipment
-            if equipment and get_equiped_in_slot(equipment.slot) is None:
+            if equipment and get_equipped_in_slot(equipment.slot) is None:
                 equipment.equip()
 
-    # Function to drop items
     def drop(self):
         if self.owner.equipment:
             self.owner.equipment.dequip()
@@ -263,7 +257,6 @@ class Item:
         self.owner.y = player.y
         message('You dropped a ' + self.owner.name + '.', libtcod.yellow)
 
-    # Function to use items
     def use(self):
         if self.owner.equipment:
             self.owner.equipment.toggle_equip()
@@ -275,10 +268,11 @@ class Item:
             if self.use_function() != 'cancelled':
                 inventory.remove(self.owner)
 
-# Basic equipment class
 class Equipment:
 
     def __init__(self, slot, vitality_bonus=0, strength_bonus=0, dexterity_bonus=0, intelligence_bonus=0, wisdom_bonus=0, luck_bonus=0, max_hp_bonus=0, hp_regen_bonus=0, light_range_bonus=0):
+        self.slot = slot
+        self.is_equipped = False
         self.vitality_bonus = vitality_bonus
         self.strength_bonus = strength_bonus
         self.dexterity_bonus = dexterity_bonus
@@ -289,39 +283,31 @@ class Equipment:
         self.hp_regen_bonus = hp_regen_bonus
         self.light_range_bonus = light_range_bonus
 
-        self.slot = slot
-        self.is_equipped = False
-
-    # Function to toggle equipment
     def toggle_equip(self):
         if self.is_equipped:
             self.dequip()
         else:
             self.equip()
 
-    # Function to equip items
     def equip(self):
-        old_equpiment = get_equiped_in_slot(self.slot)
+        old_equpiment = get_equipped_in_slot(self.slot)
         if old_equpiment is not None:
             old_equpiment.dequip()
 
         self.is_equipped = True
         message('Equipped ' + self.owner.name + ' on ' + self.slot + '.', libtcod.light_green)
 
-    # Function to dequip items
     def dequip(self):
         if not self.is_equipped: return
         self.is_equipped = False
         message('Dequipped ' + self.owner.name + ' from ' + self.slot + '.', libtcod.light_yellow)
 
-# Checks for what equipment are used
-def get_equiped_in_slot(slot):
+def get_equipped_in_slot(slot):
     for obj in inventory:
         if obj.equipment and obj.equipment.slot == slot and obj.equipment.is_equipped:
             return obj.equipment
-        return None
+    return None
 
-# Gets all equipped items
 def get_all_equipped(obj):
     if obj == player:
         equipped_list = []
@@ -332,9 +318,8 @@ def get_all_equipped(obj):
     else:
         return []
 
-# Basic function for menus
 def menu(header, options, width):
-    if len(options) > 26: raise ValueError('Cannot have a menu with more than 26 options.')
+    if len(options) > 52: raise ValueError('Cannot have a menu with more than 26 options.')
 
     header_height = libtcod.console_get_height_rect(con, 0, 0, width, SCREEN_HEIGHT, header)
     if header == '':
@@ -353,10 +338,12 @@ def menu(header, options, width):
         libtcod.console_print_ex(window, 0, y, libtcod.BKGND_NONE, libtcod.LEFT, text)
         y += 1
         letter_index += 1
+        if letter_index == ord('{'):
+            letter_index = ord('A')
 
     x = SCREEN_WIDTH/2 - width/2
     y = SCREEN_HEIGHT/2 - height/2
-    libtcod.console_blit(window, 0, 0, width, height, 0, x, y, 1.0, 0.7)
+    libtcod.console_blit(window, 0, 0, width, height, 0, x, y, 1.0, 0.5)
 
     libtcod.console_flush()
     key = libtcod.console_wait_for_keypress(True)
@@ -364,19 +351,23 @@ def menu(header, options, width):
     if key.vk == libtcod.KEY_F11:
         libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
 
-    index = key.c - ord('a')
+    if libtcod.console_is_key_pressed(libtcod.KEY_SHIFT):
+        index = (key.c - 32) - ord('A') + 26
+    else:
+        index = (key.c - ord('a'))
+
     if index >= 0 and index < len(options): return index
     return None
 
-# Function to display inventory
 def inventory_menu(header):
+    global page_x, page_y
+
     if len(inventory) == 0:
-        options = ['Inventory is empty.']
+        s1 = ['Inventory is empty.']
     else:
         s1 = []
         for item in inventory:
             text = item.name
-            count = s1.count(text)
 
             if item.equipment and item.equipment.is_equipped:
                 text = text + ' (on ' + item.equipment.slot + ')'
@@ -388,7 +379,6 @@ def inventory_menu(header):
     if index is None or len(inventory) == 0: return None
     return inventory[index].item
 
-# Function to display messages
 def msgbox( text, width=50):
     menu(text, [], width)
 
@@ -408,7 +398,6 @@ class Fighter:
         self.base_hp_regen = regen
         self.death_function = death_function
 
-    # Adds stat bonuses to the main stat
     @property
     def vitality(self):
         bonus = sum(equipment.vitality_bonus for equipment in get_all_equipped(self.owner))
@@ -454,7 +443,6 @@ class Fighter:
         bonus = sum(equipment.light_range_bonus for equipment in get_all_equipped(self.owner))
         return self.base_light_range + bonus
 
-    # Determines if an attack is a hit, miss, or crit
     def hit_chance(self, target):
         crit = 100 - self.luck
         miss = (target.fighter.dexterity + target.fighter.luck) * 2 - self.dexterity
@@ -471,7 +459,6 @@ class Fighter:
         else:
             self .attack(target)
 
-    # Function for a critical hit
     def critical(self, target):
         damage = self.strength * 2
         message('Critical Hit!', libtcod.yellow)
@@ -502,7 +489,6 @@ class Fighter:
                 if self.owner != player:
                     player.fighter.xp += self.xp
 
-    # Function for regaining hit points
     def heal(self, ammount):
         self.hp += ammount
         if self.hp > self.max_hp:
@@ -520,13 +506,11 @@ class BasicMonster:
             elif player.fighter.hp > 0:
                 monster.fighter.hit_chance(player)
 
-# Monster AI for confusion
 class ConfusedMonster:
     def __init__(self, old_ai, num_turns=CONFUSE_NUM_TURNS):
         self.old_ai = old_ai
         self.num_turns = num_turns
 
-    # Makes monster wander around aimlessly until the duration ends
     def take_turn(self):
         if self.num_turns > 0:
             self.owner.move(libtcod.random_get_int(0, -1, 1), libtcod.random_get_int(0, -1, 1))
@@ -543,14 +527,12 @@ def create_room(room):
         for y in range(room.y1 + 1, room.y2):
             map[x][y].blocked = False
             map[x][y].block_sight = False
-
 # Spawns tunnels between rooms
 def create_h_tunnel(x1, x2, y):
     global map
     for x in range(min(x1, x2), max(x1, x2) +1):
         map[x][y].blocked = False
         map[x][y].block_sight = False
-
 # Spawn tunnels between rooms
 def create_v_tunnel(y1, y2, x):
     global map
@@ -636,7 +618,7 @@ def make_map():
     objects.append(stairs)
     stairs.send_to_back()
 
-# Gets name of object under the mouse
+
 def get_names_under_mouse():
     global mouse
 
@@ -781,8 +763,8 @@ def render_all():
     render_bar(1, 9, BAR_WIDTH, 'EXP', player.fighter.xp, level_up_xp, libtcod.green, libtcod.black)
 
     libtcod.console_blit(status, 0, 0, STATUS_WIDTH, SCREEN_HEIGHT, 0, STATUS_X, 0)
-
 # Places objects on the map
+
 def place_objects(room):
 
     max_monsters = from_dungeon_level([[2, 1], [3, 4], [5, 6]])
@@ -857,7 +839,6 @@ def place_objects(room):
             objects.append(item)
             item.send_to_back()
 
-# Makes a status bar at the bottom of the screen to display a text log
 def render_bar(x, y, total_width, name, value, maximum, bar_color, back_color):
     bar_width = int(float(value) / maximum * total_width)
 
@@ -872,7 +853,6 @@ def render_bar(x, y, total_width, name, value, maximum, bar_color, back_color):
     libtcod.console_print_ex(status, x + total_width / 2, y, libtcod.BKGND_NONE, libtcod.CENTER,
         name + ': ' + str(value) + '/' + str(maximum))
 
-# Displays messages in render_bar
 def message(new_msg, color = libtcod.white):
     new_msg_lines = textwrap.wrap(new_msg, MSG_WIDTH)
 
@@ -901,8 +881,6 @@ def player_move_or_attack(dx, dy):
         player.move(dx, dy)
         fov_recompute = True
 
-# Regen a small ammount of hit points every turn
-#!#!# NEEDS WORK!
 regen_value = 0
 def hp_regen(inc):
     global regen_value
@@ -1015,7 +993,6 @@ def handle_keys():
 
             return 'didnt-take-turn'
 
-# Function to handle player level ups
 def check_level_up():
     level_up_xp = LEVEL_UP_BASE + player.level * LEVEL_UP_FACTOR
     if player.fighter.xp >= level_up_xp:
@@ -1046,7 +1023,6 @@ def check_level_up():
         elif choice == 5:
             player.fighter.base_luck += 1
 
-# Changes max hp and regen value based on vitality
 def check_vitality():
     player.fighter.max_hp = player.fighter.base_max_hp + (player.fighter.vitality * 10)
     player.fighter.hp_regen = player.fighter.base_hp_regen + (player.fighter.vitality * 0.02)
@@ -1061,7 +1037,6 @@ def player_death(player):
     game_state = 'dead'
     player.char = chr(178)
     player.color = libtcod.dark_red
-
 # Handles monster death
 def monster_death(monster):
     message(monster.name.capitalize() + ' is dead!', libtcod.red)
@@ -1074,7 +1049,6 @@ def monster_death(monster):
     monster.name = 'remains of ' + monster.name
     monster.send_to_back()
 
-# Function to get tile under mouse
 def target_tile(max_range=None):
     #return the position of a tile left-clicked in player's FOV (optionally in a range), or (None,None) if right-clicked.
     global key, mouse
@@ -1091,7 +1065,6 @@ def target_tile(max_range=None):
             (max_range is None or player.distance(x, y) <= max_range)):
             return (x, y)
 
-# Used with target tile to target a monster with ranged attacks
 def target_monster(max_range=None):
     while True:
         (x, y) = target_tile(max_range)
@@ -1102,7 +1075,6 @@ def target_monster(max_range=None):
             if obj.x == x and obj.y == y and obj.fighter and obj != player:
                 return obj
 
-# Find the closest monster to you
 def closest_monster(max_range):
     closest_enemy = None
     closest_dist = max_range + 1
@@ -1114,7 +1086,6 @@ def closest_monster(max_range):
                 closest_enemy = object
                 closest_dist = dist
     return closest_enemy
-
 
 def cast_heal():
     if player.fighter.hp == player.fighter.max_hp:
@@ -1164,7 +1135,6 @@ libtcod.sys_set_fps(LIMIT_FPS)
 panel = libtcod.console_new(SCREEN_WIDTH - 20, PANEL_HEIGHT)
 status = libtcod.console_new(STATUS_WIDTH, SCREEN_HEIGHT)
 
-# Renders everything onto the game window
 def initialize_fov():
     global fov_recompute, fov_map
     # Recomputes FOV
@@ -1178,7 +1148,6 @@ def initialize_fov():
 
             libtcod.console_clear(con)
 
-# Starts new game
 def new_game():
     global player, inventory, game_msgs, game_state, dungeon_level
 
@@ -1206,7 +1175,6 @@ def new_game():
 
     message('I still need to change this.', libtcod.red)
 
-# Renders next dungeon level
 def next_level():
     global dungeon_level
     message('You take a moment to rest, and recover your strength.', libtcod.light_violet)
@@ -1217,7 +1185,6 @@ def next_level():
     make_map()
     initialize_fov()
 
-# Main game loop
 def play_game():
     global key, mouse, TORCH_RADIUS, player_action
 
@@ -1251,7 +1218,7 @@ def play_game():
                 if object.ai:
                     object.ai.take_turn()
 
-# Function to save game
+
 def save_game():
     file = shelve.open('savegame', 'n')
     file['map'] = map
@@ -1264,7 +1231,6 @@ def save_game():
     file['dungeon_level'] = dungeon_level
     file.close()
 
-# Function to load game
 def load_game():
     global map, objects, player, inventory, game_msgs, game_state, stairs, dungeon_level
 
@@ -1281,16 +1247,197 @@ def load_game():
 
     initialize_fov()
 
-# Function to handle main menu
 def main_menu():
     img = libtcod.image_load('menu_background.png')
 
     while not libtcod.console_is_window_closed():
         libtcod.image_blit_2x(img, 0, 0, 0)
 
+        libtcod.console_set_default_foreground(0, libtcod.Color(0,217,0))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 10, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(201) + chr(205) + chr(205) + chr(205) + chr(205) + chr(205) + chr(187)
+            + chr(201) + chr(205) + chr(187) + ' ' + chr(201) + chr(205) + chr(187)
+            + chr(201) + chr(205) + chr(205) + chr(205) + chr(205) + chr(205)
+            + chr(187) + chr(201) + chr(205) + chr(187) + ' ' + chr(201)
+            + chr(205) + chr(187) + chr(201) + chr(205) + chr(205)
+            + chr(205) + chr(205) + chr(205)+ chr(187)
+            + chr(201) + chr(205) + chr(205) + chr(205)
+            + chr(205) + chr(205) + chr(187))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 11, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + '     ' + chr(186) + chr(186) + ' ' + chr(186) + ' ' + chr(186)
+            + ' ' + chr(186) + chr(186) + '     ' + chr(186) + chr(186) + ' '
+            + chr(186) + ' ' + chr(186) + ' ' + chr(186)
+            + chr(186) + '     ' + chr(186) + chr(186)
+            + '     ' + chr(186))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 12, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + ' ' + chr(201) + chr(205) + chr(205) + chr(205) + chr(188) + chr(186)
+            + ' ' + chr(186) + ' ' + chr(186) + ' ' + chr(186) + chr(200) + chr(205)
+            + chr(187) + ' ' + chr(201) + chr(205) + chr(188) + chr(186) + ' '
+            + chr(186) + ' ' + chr(186) + ' ' + chr(186) + chr(186) + ' '
+            + chr(201) + chr(205) + chr(187) + ' ' + chr(186) + chr(186)
+            + ' ' + chr(201) + chr(205) + chr(205) + chr(205) + chr(188))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 13, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + ' ' + chr(200) + chr(205) + chr(205) + chr(205) + chr(187) + chr(186)
+            + ' ' + chr(186) + ' ' + chr(186) + ' ' + chr(186) + '  ' + chr(186) + ' '
+            + chr(186) + '  ' + chr(186) + ' ' + chr(186) + ' ' + chr(186) + ' '
+            + chr(186) + chr(186) + ' ' + chr(200) + chr(205) + chr(188)
+            + ' ' + chr(186) + chr(186) + ' ' + chr(200) + chr(205)
+            + chr(205) + chr(205) + chr(187))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 14, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + '     ' + chr(186) + chr(186) + ' ' + chr(186) + ' ' + chr(186) + ' '
+            + chr(186) + '  ' + chr(186) + ' ' + chr(186) + '  ' + chr(186) + ' '
+            + chr(186) + ' ' + chr(186) + ' ' + chr(186) + chr(186) + '    '
+            + chr(203) + chr(188) + chr(186) + '     ' + chr(186))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 15, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + ' ' + chr(201) + chr(205) + chr(205) + chr(205) + chr(188) + chr(186)
+            + ' ' + chr(186) + ' ' + chr(186) + ' ' + chr(186) + '  ' + chr(186) + ' '
+            + chr(186) + '  ' + chr(186) + ' ' + chr(186) + ' ' + chr(186) + ' '
+            + chr(186) + chr(186) + ' ' + chr(201) + chr(187) + ' ' + chr(200)
+            + chr(187) + chr(186) + ' ' + chr(201) + chr(205) + chr(205)
+            + chr(205) + chr(188))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 16, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + ' ' + chr(186) + '    ' + chr(186) + ' ' + chr(200) + chr(205) + chr(188)
+            + ' ' + chr(186) + '  ' + chr(186) + ' ' + chr(186) + '  ' +  chr(186) + ' '
+            + chr(200) + chr(205) + chr(188) + ' ' + chr(186) + chr(186) + ' '
+            + chr(186) + chr(200) + chr(187) + ' ' + chr(186) + chr(186)
+            + ' ' + chr(200) + chr(205) + chr(205) + chr(205) + chr(187))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 17, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + ' ' + chr(186) + '    ' + chr(186) + '     ' + chr(186) + '  ' + chr(186)
+            + ' ' + chr(186) + '  ' + chr(186) + '     ' + chr(186) + chr(186) + ' ' + chr(186)
+            + ' ' + chr(186) + ' ' + chr(186) + chr(186) + '     ' + chr(186))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 18, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(200) + chr(205) + chr(188) + '    ' + chr(200) + chr(205) + chr(205) + chr(205)
+            + chr(205) + chr(205) + chr(188) + '  ' + chr(200) + chr(205) + chr (188) + '  '
+            + chr(200) + chr(205) + chr(205) + chr(205) + chr(205) + chr(205) + chr(188)
+            + chr(200) + chr(205) + chr(188) + ' ' + chr(200) + chr(205) + chr(188)
+            + chr(200) + chr(205) + chr(205) + chr(205) + chr(205) + chr(205)
+            + chr(188))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 19, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(201) + chr(205) + chr(205) + chr(205) + chr(205) + chr(205) + chr(187) + chr(201)
+            + chr(205) + chr(187) + ' ' + chr(201) + chr(205) + chr(187) + '              '
+            + chr(201) + chr(205) + chr(205) + chr(205) + chr(205) + chr(205) + chr(187)
+            + chr(201) + chr(205) + chr(187) + ' ' + chr(201) + chr(205) + chr(187))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 20, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + '     ' + chr(186) + chr(186) + ' ' + chr(186) + ' ' + chr(186) + ' ' + chr(186)
+            + '              ' + chr(186) + '     ' + chr(186) + chr(186) + ' ' + chr(186) + chr(201)
+            + chr(188) + ' ' + chr(186))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 21, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + ' ' + chr(201) + chr(205) + chr(205) + chr(205) + chr(188) + chr(186) + ' '
+            + chr(186) + ' ' + chr(186) + ' ' + chr(186) + '              ' + chr(186) + ' ' + chr(201) + chr(205)
+            + chr(205) + chr(205) + chr(188) + chr(186) + ' ' + chr(200) + chr(188) + ' ' + chr(201) + chr(188))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 22, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + ' ' + chr(200) + chr(205) + chr(205) + chr(205) + chr(187) + chr(186) + ' ' + chr(200)
+            + chr(205) + chr(188) + ' ' + chr(186) + '              ' + chr(186) + ' ' + chr(186) + '    '
+            + chr(186) + '   ' + chr(201) + chr(188) + ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 23, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + '     ' + chr(186) + chr(186) + '     ' + chr(186) + '              ' + chr(186) + ' '
+            + chr(186) + '    ' + chr(186) + '   ' + chr(186) + '  ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 24, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(200) + chr(205) + chr(205) + chr(205) + chr(187) + ' ' + chr(186) + chr(186) + '     '
+            + chr(186) + '              ' + chr(186) + ' ' + chr(186) + '    ' + chr(186)
+            + '   ' +  chr(200) + chr(187) + ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 25, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(201) + chr(205) + chr(205) + chr(205) + chr(188) + ' ' + chr(186) + chr(186) + ' ' + chr(201)
+            + chr(205) + chr(187) + ' ' + chr(186) + '              ' + chr(186) + ' ' + chr(200)
+            + chr(205) + chr(205) + chr(205) + chr(187) + chr(186) + ' ' + chr(201) + chr(187)
+            + ' ' + chr(200) + chr(187))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 26, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(186) + '     ' + chr(186) + chr(186) + ' ' + chr(186) + ' ' + chr(186) + ' ' + chr(186)
+            + '              ' + chr(186) + '     ' + chr(186) + chr(186) + ' ' + chr(186) + chr(200)
+            + chr(187) + ' ' + chr(186))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 27, libtcod.BKGND_NONE, libtcod.CENTER,
+            chr(200) + chr(205) + chr(205) + chr(205) + chr(205) + chr(205) + chr(188) + chr(200) + chr(205)
+            + chr(188) + ' ' + chr(200) + chr(205) + chr(188) + '              ' + chr(200) + chr(205)
+            + chr(205) +chr(205) + chr(205) + chr(205) + chr(188) + chr(200) + chr(205) + chr(188)
+            + ' ' + chr(200) + chr(205) + chr(188))
+        libtcod.console_set_default_background(0, libtcod.blue)
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 14, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ' + chr(186))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 15, libtcod.BKGND_SET, libtcod.CENTER,
+            chr(186) + '  ' + chr(186) + ' ' + chr(186))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 16, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ' + chr(186) + '  ' + chr(186) + ' ' + chr(200) + chr(205))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 17, libtcod.BKGND_SET, libtcod.CENTER,
+            chr(186) + '         ' )
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 18, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ' + chr(200) + '       ' + chr(205) + chr(205) + chr(205))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 19, libtcod.BKGND_SET, libtcod.CENTER,
+            '            ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 20, libtcod.BKGND_SET, libtcod.CENTER,
+            '              ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 21, libtcod.BKGND_SET, libtcod.CENTER,
+            '              ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 22, libtcod.BKGND_SET, libtcod.CENTER,
+            '            ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 23, libtcod.BKGND_SET, libtcod.CENTER,
+            '            ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 24, libtcod.BKGND_SET, libtcod.CENTER,
+            '          ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 25, libtcod.BKGND_SET, libtcod.CENTER,
+            '        ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 26, libtcod.BKGND_SET, libtcod.CENTER,
+            '      ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 27, libtcod.BKGND_SET, libtcod.CENTER,
+            '  ')
+        libtcod.console_set_default_background(0, libtcod.Color(0,178,0))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 2, 16, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 3, 19, libtcod.BKGND_SET, libtcod.CENTER,
+            '  ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 2, 20, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 4, 20, libtcod.BKGND_SET, libtcod.CENTER,
+            '  ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 1, 21, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 2, 21, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 1, 22, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 2, 22, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 1, 23, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 1, 23, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 24, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_set_default_background(0, libtcod.Color(0,255,0))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 1, 17, libtcod.BKGND_SET, libtcod.CENTER,
+            '  ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 1, 17, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 1, 18, libtcod.BKGND_SET, libtcod.CENTER,
+            '  ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 1, 19, libtcod.BKGND_SET, libtcod.CENTER,
+            '      ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 1, 20, libtcod.BKGND_SET, libtcod.CENTER,
+            '    ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 1, 21, libtcod.BKGND_SET, libtcod.CENTER,
+            '  ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 1, 22, libtcod.BKGND_SET, libtcod.CENTER,
+            '  ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 23, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 3, 24, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 2, 25, libtcod.BKGND_SET, libtcod.CENTER,
+            ' ')
+        libtcod.console_set_default_background(0, libtcod.Color(0,255,0))
+        libtcod.console_set_default_foreground(0, libtcod.Color(0,217,0))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2, 17, libtcod.BKGND_SET, libtcod.CENTER,
+            chr(186))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 + 1, 18, libtcod.BKGND_SET, libtcod.CENTER,
+            chr(200) + chr(205) + chr(205))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 3, 18, libtcod.BKGND_SET, libtcod.CENTER,
+            chr(188))
+        libtcod.console_set_default_background(0, libtcod.Color(0,178,0))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 3, 17, libtcod.BKGND_SET, libtcod.CENTER,
+            chr(186))
+        libtcod.console_print_ex(0, SCREEN_WIDTH/2 - 4, 18, libtcod.BKGND_SET, libtcod.CENTER,
+            chr(205))
+
         libtcod.console_set_default_foreground(0, libtcod.light_yellow)
-        libtcod.console_print_ex(0, SCREEN_WIDTH/2, SCREEN_HEIGHT/2-4, libtcod.BKGND_NONE, libtcod.CENTER,
-            'Future Shock')
         libtcod.console_print_ex(0, SCREEN_WIDTH/2, SCREEN_HEIGHT-2, libtcod.BKGND_NONE, libtcod.CENTER,
             'By Brandon Lee Boerner')
 
